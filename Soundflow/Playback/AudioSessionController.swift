@@ -30,10 +30,13 @@ final class AudioSessionController {
     var onShouldPause: (() -> Void)?
     /// Appelé quand le système autorise la reprise après une interruption.
     var onShouldResume: (() -> Void)?
+    /// Appelé si la session audio refuse de s'activer. Une panne à cet endroit
+    /// est silencieuse et catastrophique : la lecture marcherait à l'écran
+    /// allumé puis s'arrêterait au verrouillage. On la remonte donc à
+    /// l'interface plutôt que de la laisser dans un journal que personne ne lit.
+    var onActivationFailed: ((String) -> Void)?
 
     private let logger = Logger(subsystem: "com.example.Soundflow", category: "audio-session")
-    private var isConfigured = false
-    private var isActive = false
     // Lu par `deinit`, qui ne s'exécute pas forcément sur le fil principal.
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
@@ -47,32 +50,51 @@ final class AudioSessionController {
         }
     }
 
-    /// Prépare la session. Idempotent : appelable autant de fois qu'on veut.
-    func configure() {
-        guard !isConfigured else { return }
+    /// Déclare la catégorie de la session, sans l'activer.
+    ///
+    /// Appelé au lancement pour qu'iOS sache tout de suite à quel genre d'app
+    /// il a affaire.
+    @discardableResult
+    func configure() -> Bool {
         do {
             try AVAudioSession.sharedInstance().setCategory(
                 .playback,
                 mode: .default,
                 options: []
             )
-            isConfigured = true
+            return true
         } catch {
             logger.error("Configuration de la session impossible: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
-    /// Active la session. On le fait au premier `play()` et pas au lancement :
-    /// une app qui s'approprie la sortie audio sans rien jouer coupe la
-    /// musique des autres apps pour rien.
+    /// Active la session, en réaffirmant la catégorie au passage.
+    ///
+    /// On active au premier `play()` plutôt qu'au lancement : une app qui
+    /// s'approprie la sortie audio sans rien jouer coupe la musique des autres
+    /// apps pour rien.
+    ///
+    /// Deux choix délibérés ici :
+    ///
+    /// - **La catégorie est redéclarée à chaque activation.** L'opération est
+    ///   idempotente et quasi gratuite, et elle rend le code immunisé contre
+    ///   un drapeau interne qui prétendrait « c'est déjà fait » alors qu'un
+    ///   appel précédent a échoué, ou qu'une réinitialisation des services
+    ///   audio a tout remis à zéro. Sans catégorie `.playback`, iOS applique
+    ///   sa valeur par défaut, qui arrête le son au verrouillage de l'écran.
+    /// - **Aucun raccourci si la session est déjà active.** Réactiver une
+    ///   session déjà active ne coûte rien et garantit l'état réel plutôt
+    ///   qu'un état supposé.
     func activate() {
-        configure()
-        guard !isActive else { return }
+        let session = AVAudioSession.sharedInstance()
         do {
-            try AVAudioSession.sharedInstance().setActive(true)
-            isActive = true
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
         } catch {
-            logger.error("Activation de la session impossible: \(error.localizedDescription, privacy: .public)")
+            let message = error.localizedDescription
+            logger.error("Activation de la session impossible: \(message, privacy: .public)")
+            onActivationFailed?(message)
         }
     }
 
@@ -114,8 +136,6 @@ final class AudioSessionController {
             ) { [weak self] _ in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.isConfigured = false
-                    self.isActive = false
                     self.configure()
                     self.onShouldPause?()
                 }

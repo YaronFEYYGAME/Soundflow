@@ -49,6 +49,46 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      # --- Vérification de la configuration --------------------------------
+      # La lecture en arrière-plan repose sur une clé du fichier Info.plist.
+      # Si elle est absente ou mal formée, l'app se compile et s'installe
+      # parfaitement, puis s'arrête de jouer dès que l'écran s'éteint — une
+      # panne invisible à la compilation, et très visible à l'usage.
+      # C'est exactement le genre de chose qu'une machine doit vérifier.
+      - name: Vérifier la configuration de l'app construite
+        run: |
+          set -euo pipefail
+          PLIST="$RUNNER_TEMP/Soundflow.xcarchive/Products/Applications/Soundflow.app/Info.plist"
+          if [ ! -f "$PLIST" ]; then
+            echo "::error::Info.plist introuvable dans l'app construite."
+            exit 1
+          fi
+
+          echo "--- Clés déterminantes de l'app construite ---"
+          plutil -p "$PLIST" | grep -E \
+            'CFBundleIdentifier|CFBundleShortVersionString|UIBackgroundModes|UIFileSharingEnabled|LSSupportsOpeningDocumentsInPlace|MinimumOSVersion' \
+            || true
+          echo "---------------------------------------------"
+
+          # UIBackgroundModes doit être un tableau contenant « audio ».
+          # `plutil -extract` échoue si la clé est absente, et la sortie XML
+          # ne contient <string>audio</string> que si c'est bien un tableau.
+          if ! plutil -extract UIBackgroundModes xml1 -o - "$PLIST" 2>/dev/null \
+               | grep -q '<string>audio</string>'; then
+            echo "::error::UIBackgroundModes ne déclare pas « audio ». La lecture s'arrêterait dès que l'app passe en arrière-plan."
+            plutil -p "$PLIST" || true
+            exit 1
+          fi
+          echo "✓ Lecture en arrière-plan correctement déclarée."
+
+          for key in UIFileSharingEnabled LSSupportsOpeningDocumentsInPlace; do
+            if ! plutil -extract "$key" raw -o - "$PLIST" 2>/dev/null | grep -qi 'true\|1'; then
+              echo "::error::$key est absent ou faux : le dossier Soundflow n'apparaîtrait pas dans l'app Fichiers."
+              exit 1
+            fi
+          done
+          echo "✓ Dossier Soundflow visible depuis l'app Fichiers."
+
       # --- Empaquetage -----------------------------------------------------
       # Un .ipa n'est rien d'autre qu'une archive ZIP contenant un dossier
       # « Payload » avec l'app dedans. On le fabrique à la main, parce que

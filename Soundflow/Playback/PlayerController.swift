@@ -438,6 +438,9 @@ final class PlayerController {
         session.onShouldResume = { [weak self] in
             self?.player.play()
         }
+        session.onActivationFailed = { [weak self] message in
+            self?.lastError = "Le son ne peut pas démarrer : \(message)"
+        }
     }
 
     private func wireRemoteCommands() {
