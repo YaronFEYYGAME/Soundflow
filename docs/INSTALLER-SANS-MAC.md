@@ -81,6 +81,17 @@ la version du Store, désinstallez-la d'abord.
 Il apporte un composant (`Apple Application Support`) nécessaire au dialogue
 avec l'iPhone.
 
+> ⚠️ **Ne vous connectez pas à iCloud.** Installez, puis fermez la fenêtre.
+> Seul le composant installé en arrière-plan nous intéresse ; le compte ne
+> sert à rien ici.
+>
+> Si vous essayez malgré tout, avec un identifiant Apple récemment créé, vous
+> verrez : *« Connexion impossible — Vous devez vous servir de votre
+> identifiant Apple pour configurer iCloud sur un Mac ou un appareil iOS
+> avant de pouvoir utiliser iCloud pour Windows. »* C'est une limitation
+> réelle d'Apple, et elle est **sans conséquence** pour nous. Cliquez sur
+> *OK* et passez à la suite.
+
 **c) Sideloadly**
 
 https://sideloadly.io — gratuit, Windows et macOS.
@@ -99,8 +110,19 @@ a ouvert des possibilités supplémentaires.
 
 ## Étape 3 · Préparer l'identifiant Apple
 
-Sideloadly va demander votre identifiant Apple pour signer l'app. Deux
-recommandations :
+**Où va votre identifiant Apple ?** C'est la question qui prête le plus à
+confusion, alors autant la régler tout de suite :
+
+| Logiciel | Identifiant Apple ? |
+|---|---|
+| iTunes | Non. Installez, ne l'ouvrez même pas. |
+| iCloud pour Windows | **Non.** Installez, fermez, oubliez. |
+| **Sideloadly** | **Oui** — là, et uniquement là, à l'étape 4. |
+
+Seul Sideloadly utilise votre identifiant, pour signer l'app. Lui n'exige
+aucune configuration préalable sur un appareil Apple.
+
+Deux recommandations le concernant :
 
 1. **Créez un identifiant Apple secondaire** (appleid.apple.com), dédié à cet
    usage. Rien ne vous y oblige, mais cela évite de confier votre compte
@@ -109,6 +131,16 @@ recommandations :
    application** sur https://appleid.apple.com → *Connexion et sécurité* →
    *Mots de passe pour applications*. Vous le collerez à la place de votre vrai
    mot de passe.
+
+### Vérification avant de continuer
+
+Le test qui évite de perdre du temps plus loin :
+
+1. Branchez l'iPhone en USB, faites **Se fier** sur le téléphone.
+2. Ouvrez **iTunes**.
+3. Une petite icône d'iPhone apparaît en haut à gauche ? Alors Sideloadly le
+   verra aussi. Sinon, allez voir le dépannage en bas de page avant d'aller
+   plus loin.
 
 ## Étape 4 · Installer sur l'iPhone
 
@@ -175,6 +207,10 @@ cette façon** au maximum, et **10 nouvelles apps par semaine**.
 ---
 
 ## Dépannage
+
+**iCloud affiche « Connexion impossible »**
+Normal, et sans importance : vous n'avez pas à vous connecter à iCloud (voir
+l'étape 2b). Cliquez sur *OK* et fermez la fenêtre.
 
 **Sideloadly ne voit pas l'iPhone**
 Presque toujours la version d'iTunes. Désinstallez celle du Microsoft Store,
