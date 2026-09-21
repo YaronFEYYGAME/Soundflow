@@ -16,9 +16,15 @@ final class SmartShuffleTests: XCTestCase {
     }
 
     /// Simule une session d'écoute et renvoie l'ordre des morceaux joués.
+    /// - Important : `preferences` n'a délibérément **pas** de valeur par
+    ///   défaut. Une première version de ces tests construisait un
+    ///   dictionnaire de scores puis oubliait de le passer ici ; la valeur
+    ///   par défaut `[:]` faisait alors silencieusement tourner le test sur
+    ///   une bibliothèque entièrement neutre, et il ne vérifiait plus rien.
+    ///   Rendre le paramètre obligatoire empêche que cela se reproduise.
     private func simulate(
         library: [TrackID],
-        preferences: [TrackID: TrackPreferences] = [:],
+        preferences: [TrackID: TrackPreferences],
         plays: Int,
         seed: UInt64 = 42,
         configuration: ShuffleConfiguration = .default
@@ -64,7 +70,7 @@ final class SmartShuffleTests: XCTestCase {
     func testNeverRepeatsImmediately() {
         for librarySize in [2, 3, 5, 12, 50] {
             for seed in [1, 7, 99, 12_345] as [UInt64] {
-                let played = simulate(library: makeIDs(librarySize), plays: 800, seed: seed)
+                let played = simulate(library: makeIDs(librarySize), preferences: [:], plays: 800, seed: seed)
                 XCTAssertEqual(played.count, 800)
                 for index in 1..<played.count {
                     XCTAssertNotEqual(
@@ -100,7 +106,7 @@ final class SmartShuffleTests: XCTestCase {
         let cooldown = shuffle.hardCooldownSize(eligibleCount: librarySize)
         XCTAssertGreaterThan(cooldown, 1)
 
-        let played = simulate(library: library, plays: 2_000)
+        let played = simulate(library: library, preferences: [:], plays: 2_000)
         var lastIndex: [TrackID: Int] = [:]
         for (index, id) in played.enumerated() {
             if let previous = lastIndex[id] {
@@ -157,7 +163,7 @@ final class SmartShuffleTests: XCTestCase {
 
     func testSingleTrackLibraryAlwaysReturnsThatTrack() {
         let library = makeIDs(1)
-        let played = simulate(library: library, plays: 10)
+        let played = simulate(library: library, preferences: [:], plays: 10)
         XCTAssertEqual(played, Array(repeating: library[0], count: 10))
     }
 
@@ -180,7 +186,7 @@ final class SmartShuffleTests: XCTestCase {
         preferences[library[0]] = TrackPreferences(score: 2)
         preferences[library[1]] = TrackPreferences(score: -2)
 
-        let played = simulate(library: library, plays: 30_000)
+        let played = simulate(library: library, preferences: preferences, plays: 30_000)
         var counts: [TrackID: Int] = [:]
         for id in played { counts[id, default: 0] += 1 }
 
@@ -202,7 +208,7 @@ final class SmartShuffleTests: XCTestCase {
             preferences[library[offset]] = TrackPreferences(score: score)
         }
 
-        let played = simulate(library: library, plays: 40_000, seed: 2_024)
+        let played = simulate(library: library, preferences: preferences, plays: 40_000, seed: 2_024)
         var counts: [TrackID: Int] = [:]
         for id in played { counts[id, default: 0] += 1 }
 
@@ -220,15 +226,15 @@ final class SmartShuffleTests: XCTestCase {
 
     func testSameSeedProducesSameSequence() {
         let library = makeIDs(15)
-        let first = simulate(library: library, plays: 200, seed: 777)
-        let second = simulate(library: library, plays: 200, seed: 777)
+        let first = simulate(library: library, preferences: [:], plays: 200, seed: 777)
+        let second = simulate(library: library, preferences: [:], plays: 200, seed: 777)
         XCTAssertEqual(first, second)
     }
 
     func testDifferentSeedsProduceDifferentSequences() {
         let library = makeIDs(15)
-        let first = simulate(library: library, plays: 200, seed: 1)
-        let second = simulate(library: library, plays: 200, seed: 2)
+        let first = simulate(library: library, preferences: [:], plays: 200, seed: 1)
+        let second = simulate(library: library, preferences: [:], plays: 200, seed: 2)
         XCTAssertNotEqual(first, second)
     }
 }
