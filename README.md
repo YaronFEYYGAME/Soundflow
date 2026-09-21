@@ -16,10 +16,17 @@ Pas de playlists, pas d'égaliseur, pas de statistiques. C'est volontaire.
 
 ---
 
-## Démarrer en cinq minutes
+## Installer l'app sur un iPhone
 
-Prérequis : un Mac avec **Xcode 16 ou plus récent** (gratuit sur le Mac App
-Store) et un iPhone sous **iOS 17 ou plus récent**.
+**Vous n'avez pas de Mac ?** C'est le cas le plus courant, et c'est prévu :
+suivez **[`docs/INSTALLER-SANS-MAC.md`](docs/INSTALLER-SANS-MAC.md)**. GitHub
+compile l'app sur un Mac prêté gratuitement, et vous l'installez depuis un PC
+Windows.
+
+## Démarrer sur un Mac
+
+Prérequis : **Xcode 16 ou plus récent** (gratuit sur le Mac App Store) et un
+iPhone sous **iOS 17 ou plus récent**.
 
 1. Ouvrez `Soundflow.xcodeproj` (double-clic).
 2. En haut de la fenêtre, choisissez la destination : un simulateur d'iPhone,
@@ -59,6 +66,8 @@ docs/             Explications détaillées
 
 ## Pour aller plus loin
 
+- [`docs/INSTALLER-SANS-MAC.md`](docs/INSTALLER-SANS-MAC.md) — installer
+  l'app depuis un PC Windows, pas à pas.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — comment les couches sont
   séparées, et **comment ajouter une source iCloud ou Dropbox** plus tard.
 - [`docs/ALGORITHME-ALEATOIRE.md`](docs/ALGORITHME-ALEATOIRE.md) — le

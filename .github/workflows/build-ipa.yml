@@ -1,0 +1,129 @@
+# Compile Soundflow sur un Mac fourni par GitHub, puis met à disposition un
+# fichier .ipa prêt à être installé sur un iPhone.
+#
+# Pourquoi ce fichier existe : compiler une app iOS exige macOS. Si vous n'avez
+# pas de Mac, GitHub en prête un gratuitement (illimité pour un dépôt public).
+# Ce fichier décrit ce que ce Mac doit faire.
+#
+# Le .ipa produit n'est PAS signé : la signature se fait ensuite sur votre PC,
+# avec votre identifiant Apple. Voir docs/INSTALLER-SANS-MAC.md.
+
+name: Compiler l'app (.ipa)
+
+on:
+  # Bouton « Run workflow » dans l'onglet Actions de GitHub.
+  workflow_dispatch:
+  # Et automatiquement à chaque modification du code.
+  push:
+    branches:
+      - main
+      - 'claude/**'
+
+jobs:
+  build:
+    name: Compiler et empaqueter
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Afficher la version de Xcode utilisée
+        run: xcodebuild -version
+
+      # --- Compilation -----------------------------------------------------
+      # CODE_SIGNING_ALLOWED=NO : on compile sans signer. La signature demande
+      # un compte Apple, qui n'a pas sa place dans une compilation automatique.
+      # Elle sera faite plus tard, sur votre PC, avec votre identifiant.
+      - name: Compiler l'application
+        run: |
+          xcodebuild \
+            -project Soundflow.xcodeproj \
+            -scheme Soundflow \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Soundflow.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      # --- Empaquetage -----------------------------------------------------
+      # Un .ipa n'est rien d'autre qu'une archive ZIP contenant un dossier
+      # « Payload » avec l'app dedans. On le fabrique à la main, parce que
+      # l'export officiel de Xcode exigerait une signature.
+      - name: Fabriquer le fichier .ipa
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Soundflow.xcarchive/Products/Applications/Soundflow.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::L'application n'a pas été produite. La compilation a échoué."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/package/Payload/"
+          cd "$RUNNER_TEMP/package"
+          zip -qry "$RUNNER_TEMP/Soundflow-unsigned.ipa" Payload
+          ls -lh "$RUNNER_TEMP/Soundflow-unsigned.ipa"
+
+      - name: Mettre le .ipa à disposition
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soundflow-ipa
+          path: ${{ runner.temp }}/Soundflow-unsigned.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Récapitulatif
+        if: always()
+        run: |
+          {
+            echo "## Soundflow"
+            echo ""
+            if [ -f "$RUNNER_TEMP/Soundflow-unsigned.ipa" ]; then
+              echo "L'application a été compilée."
+              echo ""
+              echo "**Étape suivante :** en bas de cette page, section *Artifacts*,"
+              echo "téléchargez \`Soundflow-ipa\`, puis suivez"
+              echo "\`docs/INSTALLER-SANS-MAC.md\`."
+            else
+              echo "La compilation a échoué. Ouvrez l'étape en rouge ci-dessus"
+              echo "pour voir le message d'erreur exact."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    name: Tests unitaires
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      # Le nom des simulateurs disponibles change à chaque version de Xcode.
+      # Plutôt que d'en coder un en dur (et de casser au prochain changement),
+      # on demande à la machine lequel elle a sous la main. Seuls les runtimes
+      # iOS proposent des appareils nommés « iPhone », le filtre suffit donc.
+      - name: Choisir un simulateur d'iPhone disponible
+        id: simulator
+        run: |
+          UDID=$(xcrun simctl list devices available \
+            | grep -m1 -E '^[[:space:]]+iPhone' \
+            | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}')
+          if [ -z "$UDID" ]; then
+            echo "::error::Aucun simulateur d'iPhone disponible sur cette machine."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Simulateur retenu : $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Exécuter les tests
+        run: |
+          xcodebuild \
+            -project Soundflow.xcodeproj \
+            -scheme Soundflow \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            test
