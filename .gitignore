@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Xcode — état local de l'utilisateur, jamais versionné
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
