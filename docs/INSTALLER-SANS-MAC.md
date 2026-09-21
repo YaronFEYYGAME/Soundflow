@@ -157,10 +157,32 @@ Le test qui évite de perdre du temps plus loin :
    dans Sideloadly.
 9. Attendez le message **« Done »** (une à trois minutes).
 
-## Étape 5 · Autoriser l'app sur l'iPhone
+## Étape 5 · Activer le mode développeur
 
-L'icône Soundflow est apparue, mais elle refusera de s'ouvrir tant que vous
-n'aurez pas déclaré lui faire confiance.
+L'icône Soundflow est apparue, mais l'iPhone refuse de l'ouvrir et réclame le
+« mode développeur ». C'est normal, et c'est à faire **une seule fois**.
+
+1. **Réglages** → **Confidentialité et sécurité**
+2. Tout en bas → **Mode développeur**
+3. Activez l'interrupteur.
+4. iOS demande de redémarrer → **Redémarrer**.
+5. **Après le redémarrage**, une alerte apparaît : *« Activer le mode
+   développeur ? »* → **Activer**, puis saisissez votre code.
+
+> **Pourquoi cette contrainte ?** Depuis iOS 16, une app signée avec un
+> certificat de développement ne peut pas s'exécuter tant que l'appareil n'a
+> pas été explicitement basculé dans ce mode — avec redémarrage **et** code
+> obligatoires. C'est une friction délibérée d'Apple : elle empêche qu'on
+> persuade quelqu'un d'installer une app non vérifiée en trente secondes.
+> Elle ne vous protège de rien ici, puisque vous savez ce que vous installez,
+> mais il faut en passer par là.
+
+Le mode développeur reste actif ensuite, y compris pour les renouvellements
+hebdomadaires. Vous ne referez plus jamais cette étape.
+
+## Étape 6 · Autoriser l'app sur l'iPhone
+
+Dernière formalité : déclarer que vous faites confiance au certificat.
 
 1. **Réglages** → **Général** → **VPN et gestion de l'appareil**
 2. Sous *App du développeur*, appuyez sur la ligne correspondant à votre
@@ -169,7 +191,7 @@ n'aurez pas déclaré lui faire confiance.
 
 Ouvrez Soundflow. 🎉
 
-## Étape 6 · Mettre vos MP3 dedans
+## Étape 7 · Mettre vos MP3 dedans
 
 C'est le moment le plus agréable, parce qu'il n'y a rien à installer :
 
@@ -218,8 +240,15 @@ installez celle du site Apple, redémarrez le PC. Essayez aussi un autre câble
 (certains câbles ne transportent que l'alimentation) et un port USB direct,
 sans hub.
 
+**L'iPhone réclame le « mode développeur »**
+C'est l'étape 5, obligatoire depuis iOS 16. Elle ne se fait qu'une fois.
+
 **« Unable to verify app » / l'app ne s'ouvre pas**
-L'étape 5 n'a pas été faite, ou les 7 jours sont écoulés.
+L'étape 6 n'a pas été faite, ou les 7 jours sont écoulés.
+
+**« Mode développeur » n'apparaît pas dans les Réglages**
+Cette entrée ne se montre qu'une fois une app signée en développement
+présente sur l'appareil. Terminez l'étape 4, puis regardez à nouveau.
 
 **« Maximum number of apps reached »**
 Vous avez atteint la limite de 3 apps. Supprimez-en une installée de la même
