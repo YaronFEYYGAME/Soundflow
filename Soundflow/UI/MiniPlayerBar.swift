@@ -79,7 +79,7 @@ struct MiniPlayerBar: View {
 
     @ViewBuilder
     private var artwork: some View {
-        if let image = player.artworkImage {
+        if let image = player.displayedArtwork {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fill)

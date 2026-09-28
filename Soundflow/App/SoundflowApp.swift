@@ -12,15 +12,20 @@ struct SoundflowApp: App {
                 .environment(appEnvironment.library)
                 .environment(appEnvironment.preferences)
                 .environment(appEnvironment.player)
+                .environment(appEnvironment.backgrounds)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                // L'utilisateur a pu déposer des fichiers depuis l'app
-                // Fichiers pendant que Soundflow était en arrière-plan.
+                // L'utilisateur a pu, depuis l'app Fichiers, déposer des
+                // morceaux ou des fonds, ou remplacer le fichier de réglages
+                // (transfert depuis une autre installation). Les réglages
+                // sont relus en premier, avant tout le reste.
+                appEnvironment.preferences.reloadIfChangedOnDisk()
                 Task {
-                    await appEnvironment.library.refresh(pruning: appEnvironment.preferences)
+                    await appEnvironment.library.refresh()
                     appEnvironment.player.libraryDidChange()
+                    await appEnvironment.backgrounds.refresh()
                 }
             case .background, .inactive:
                 // Dernière sauvegarde garantie avant une éventuelle mise à

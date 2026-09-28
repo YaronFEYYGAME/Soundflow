@@ -43,8 +43,12 @@ private actor LibraryStateWriter {
         self.url = url
     }
 
-    func write(_ state: LibraryStateFile, revision: UInt64) {
-        guard revision >= lastWrittenRevision else { return }
+    /// Écrit l'état et renvoie la date de modification du fichier obtenu,
+    /// pour que le magasin sache reconnaître ses propres écritures d'une
+    /// modification venue de l'extérieur.
+    @discardableResult
+    func write(_ state: LibraryStateFile, revision: UInt64) -> Date? {
+        guard revision >= lastWrittenRevision else { return nil }
         lastWrittenRevision = revision
         do {
             try FileManager.default.createDirectory(
@@ -55,14 +59,24 @@ private actor LibraryStateWriter {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(state)
             try data.write(to: url, options: [.atomic])
+            return PreferencesStore.modificationDate(of: url)
         } catch {
             logger.error("Échec d'écriture de l'état: \(error.localizedDescription, privacy: .public)")
+            return nil
         }
     }
 }
 
 /// Mémoire des réglages utilisateur : scores favoris, sourdines, historique
 /// d'écoute.
+///
+/// **Où vit le fichier.** Dans le dossier Documents de l'app, à côté des MP3,
+/// sous le nom `Soundflow-reglages.json` — donc visible dans l'app Fichiers.
+/// C'est voulu : toute la bibliothèque (musique **et** réglages) tient ainsi
+/// dans un seul dossier, que l'utilisateur peut sauvegarder ou transférer
+/// vers une nouvelle installation sans outil particulier. Les premières
+/// versions rangeaient ce fichier dans un dossier caché ; il est déplacé
+/// automatiquement au premier lancement.
 ///
 /// Choix de stockage : un simple fichier JSON, pas de base de données.
 /// Pourquoi ? Parce que les données sont minuscules (quelques dizaines
@@ -89,17 +103,73 @@ final class PreferencesStore {
     /// Incrémenté à chaque modification, pour ordonner les écritures disque.
     @ObservationIgnored private var revision: UInt64 = 0
 
-    init(fileURL: URL? = nil) {
+    private let fileURL: URL
+
+    /// Date de modification du fichier telle que nous la connaissons (après
+    /// notre dernière lecture ou écriture). Une date différente sur le disque
+    /// signifie que quelqu'un d'autre a remplacé le fichier.
+    @ObservationIgnored private var knownModificationDate: Date?
+
+    /// - Parameters:
+    ///   - fileURL: emplacement du fichier ; `nil` pour l'emplacement normal.
+    ///   - legacyFileURL: ancien emplacement, dont le contenu est repris s'il
+    ///     n'existe encore rien au nouveau. `nil` pour l'ancien emplacement
+    ///     réel des premières versions — mais seulement si `fileURL` est
+    ///     lui-même `nil`, pour que les tests restent isolés.
+    init(fileURL: URL? = nil, legacyFileURL: URL? = nil) {
         let url = fileURL ?? PreferencesStore.defaultFileURL()
+        let legacy = legacyFileURL ?? (fileURL == nil ? PreferencesStore.legacyFileURL() : nil)
+        self.fileURL = url
         self.writer = LibraryStateWriter(url: url)
+        if let legacy {
+            migrate(from: legacy, to: url)
+        }
         load(from: url)
     }
 
     static func defaultFileURL() -> URL {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        return documents.appending(path: "Soundflow-reglages.json")
+    }
+
+    /// Emplacement utilisé par les premières versions de l'app.
+    static func legacyFileURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         return base.appending(path: "Soundflow", directoryHint: .isDirectory)
             .appending(path: "library-state.json")
+    }
+
+    nonisolated static func modificationDate(of url: URL) -> Date? {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))
+        return attributes?[.modificationDate] as? Date
+    }
+
+    /// Reprend l'ancien fichier s'il n'y a encore rien au nouvel emplacement.
+    ///
+    /// Copier puis supprimer, plutôt que déplacer : si la copie échoue, rien
+    /// n'est perdu, l'ancien fichier est toujours là et sera relu au prochain
+    /// lancement.
+    private func migrate(from legacy: URL, to destination: URL) {
+        let fileManager = FileManager.default
+        let legacyPath = legacy.path(percentEncoded: false)
+        guard fileManager.fileExists(atPath: legacyPath) else { return }
+        guard !fileManager.fileExists(atPath: destination.path(percentEncoded: false)) else {
+            // Le nouveau fichier fait foi ; l'ancien n'a plus d'utilité.
+            try? fileManager.removeItem(at: legacy)
+            return
+        }
+        do {
+            try fileManager.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.copyItem(at: legacy, to: destination)
+            try? fileManager.removeItem(at: legacy)
+        } catch {
+            logger.error("Migration des réglages impossible: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Lecture
@@ -153,15 +223,33 @@ final class PreferencesStore {
         save()
     }
 
-    /// Nettoie les réglages et l'historique des morceaux qui n'existent plus.
-    /// Appelé après chaque rafraîchissement de la bibliothèque.
-    func prune(keeping existing: Set<TrackID>) {
-        let removedPreferences = preferences.keys.filter { !existing.contains($0) }
+    /// Oublie tout ce qui concerne un morceau. Appelé uniquement quand
+    /// l'utilisateur **supprime** explicitement ce morceau.
+    ///
+    /// Il n'y a volontairement plus de nettoyage automatique des morceaux
+    /// absents. Un fichier peut manquer temporairement — pendant une copie
+    /// depuis l'app Fichiers, par exemple — et un tel nettoyage effaçait alors
+    /// ses réglages pour de bon. Conserver quelques octets de trop pour un
+    /// morceau réellement disparu est un prix dérisoire en échange.
+    func forget(_ id: TrackID) {
+        let hadPreferences = preferences.removeValue(forKey: id) != nil
         let historyBefore = history.count
-        history.removeAll { !existing.contains($0) }
-        guard !removedPreferences.isEmpty || history.count != historyBefore else { return }
-        for id in removedPreferences { preferences.removeValue(forKey: id) }
+        history.removeAll { $0 == id }
+        guard hadPreferences || history.count != historyBefore else { return }
         save()
+    }
+
+    /// Relit le fichier s'il a été remplacé depuis l'extérieur de l'app —
+    /// typiquement quand l'utilisateur y a copié ses réglages depuis une
+    /// autre installation, via l'app Fichiers.
+    ///
+    /// - Returns: `true` si un rechargement a eu lieu.
+    @discardableResult
+    func reloadIfChangedOnDisk() -> Bool {
+        guard let diskDate = Self.modificationDate(of: fileURL) else { return false }
+        if let knownModificationDate, diskDate == knownModificationDate { return false }
+        load(from: fileURL)
+        return true
     }
 
     private func apply(_ value: TrackPreferences, to id: TrackID) {
@@ -183,7 +271,10 @@ final class PreferencesStore {
         revision += 1
         let snapshot = makeSnapshot()
         let currentRevision = revision
-        Task { await writer.write(snapshot, revision: currentRevision) }
+        Task {
+            let date = await writer.write(snapshot, revision: currentRevision)
+            noteOwnWrite(at: date)
+        }
     }
 
     /// Sauvegarde à effectuer avant que l'app ne passe en arrière-plan.
@@ -191,7 +282,14 @@ final class PreferencesStore {
     /// fichier est à jour quand elle rend la main.
     func flush() async {
         revision += 1
-        await writer.write(makeSnapshot(), revision: revision)
+        let date = await writer.write(makeSnapshot(), revision: revision)
+        noteOwnWrite(at: date)
+    }
+
+    private func noteOwnWrite(at date: Date?) {
+        guard let date else { return }
+        if let known = knownModificationDate, known > date { return }
+        knownModificationDate = date
     }
 
     private func makeSnapshot() -> LibraryStateFile {
@@ -205,6 +303,7 @@ final class PreferencesStore {
     }
 
     private func load(from url: URL) {
+        knownModificationDate = Self.modificationDate(of: url)
         guard let data = try? Data(contentsOf: url) else { return }
         do {
             let state = try JSONDecoder().decode(LibraryStateFile.self, from: data)

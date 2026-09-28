@@ -38,6 +38,28 @@ final class PlayerController {
     /// « saute » sous le doigt.
     var isScrubbing = false
 
+    /// Morceaux demandés explicitement, joués avant tout tirage aléatoire.
+    private(set) var queue = PlaybackQueue()
+
+    /// Image imposée à la place de la pochette du morceau (le fond choisi par
+    /// l'utilisateur). `nil` : on affiche la pochette du morceau, comme avant.
+    ///
+    /// Le lecteur ne sait pas d'où vient cette image — c'est le magasin des
+    /// fonds qui la lui fournit. Il se contente de la préférer à la pochette,
+    /// partout : écran verrouillé, centre de contrôle, barre de lecture.
+    private(set) var artworkOverride: UIImage?
+
+    func setArtworkOverride(_ image: UIImage?) {
+        guard image !== artworkOverride else { return }
+        artworkOverride = image
+        refreshNowPlaying()
+    }
+
+    /// L'image réellement affichée pour le morceau en cours.
+    var displayedArtwork: UIImage? {
+        artworkOverride ?? artworkImage
+    }
+
     // MARK: - Dépendances
 
     private let library: LibraryModel
@@ -75,6 +97,14 @@ final class PlayerController {
     /// on arrête au lieu d'enchaîner les échecs à l'infini (ce qui viderait
     /// la batterie et donnerait l'impression d'un plantage).
     @ObservationIgnored private var consecutiveFailures = 0
+
+    /// Dernière pochette transmise à l'écran verrouillé, et son enveloppe
+    /// système. On ne recrée l'enveloppe que si l'image change : l'écran
+    /// verrouillé est rafraîchi à chaque pause ou changement de position, et
+    /// il est inutile de lui renvoyer à chaque fois une image de plusieurs
+    /// mégaoctets.
+    @ObservationIgnored private var publishedArtworkSource: UIImage?
+    @ObservationIgnored private var publishedArtwork: MPMediaItemArtwork?
 
     init(
         library: LibraryModel,
@@ -182,9 +212,16 @@ final class PlayerController {
     }
 
     /// Démarre l'écoute quand rien ne joue encore (bouton « Lecture aléatoire »).
+    ///
+    /// Si des morceaux attendent dans la file, ils passent en premier : c'est
+    /// ce que l'utilisateur a demandé en dernier, explicitement.
     func startPlaybackFromScratch() {
         guard !library.tracks.isEmpty else { return }
         consecutiveFailures = 0
+        if let queued = dequeueNextAvailable() {
+            start(queued, autoPlay: true)
+            return
+        }
         guard let track = nextTrackForShuffle() else {
             // Tous les morceaux sont en sourdine : on le dit, plutôt que de
             // ne rien faire silencieusement — un bouton sans effet visible
@@ -217,15 +254,65 @@ final class PlayerController {
         nowPlaying.clear()
     }
 
+    // MARK: - File d'attente
+
+    /// Ajoute un morceau en fin de file. Renvoie sa position, pour l'annoncer.
+    ///
+    /// Un morceau en sourdine peut être mis en file : c'est une demande
+    /// explicite, comme un tap pour le lire. La sourdine ne concerne que le
+    /// tirage aléatoire.
+    @discardableResult
+    func enqueue(_ track: Track) -> Int {
+        queue.enqueue(track.id)
+    }
+
+    func removeFromQueue(atOffsets offsets: IndexSet) {
+        queue.remove(atOffsets: offsets)
+    }
+
+    func moveQueue(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        queue.move(fromOffsets: offsets, toOffset: destination)
+    }
+
+    func clearQueue() {
+        queue.removeAll()
+    }
+
+    /// Tap sur une ligne de la file : ce morceau-là, tout de suite. Il quitte
+    /// la file ; les autres gardent leur place.
+    func playFromQueue(_ entryID: UUID) {
+        guard
+            let trackID = queue.remove(id: entryID),
+            let track = library.track(with: trackID)
+        else { return }
+        play(track)
+    }
+
+    private func dequeueNextAvailable() -> Track? {
+        guard !queue.isEmpty else { return nil }
+        let available = Set(library.tracks.map(\.id))
+        guard let trackID = queue.dequeueNext(availableIn: available) else { return nil }
+        return library.track(with: trackID)
+    }
+
     // MARK: - Sélection du morceau suivant
 
+    /// Ordre de priorité pour choisir le morceau suivant :
+    ///
+    /// 1. la pile « avant », si l'utilisateur est revenu en arrière —
+    ///    « suivant » doit alors refaire le chemin inverse ;
+    /// 2. la file d'attente, demandée explicitement ;
+    /// 3. le tirage aléatoire ou l'ordre de la liste.
     private func advance(autoPlay: Bool) {
-        // Priorité à la pile « avant » : si l'utilisateur est revenu en
-        // arrière, « suivant » doit refaire le chemin inverse, pas tirer un
-        // nouveau morceau au hasard.
         if let forwardID = forwardStack.popLast(), let track = library.track(with: forwardID) {
             if let current = currentTrack { backStack.append(current.id) }
             start(track, autoPlay: autoPlay)
+            return
+        }
+
+        if let queued = dequeueNextAvailable() {
+            if let current = currentTrack { backStack.append(current.id) }
+            start(queued, autoPlay: autoPlay)
             return
         }
 
@@ -454,10 +541,14 @@ final class PlayerController {
     }
 
     private func refreshNowPlaying() {
-        var artwork: MPMediaItemArtwork?
-        if let image = artworkImage {
-            artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        let image = displayedArtwork
+        if image !== publishedArtworkSource {
+            publishedArtworkSource = image
+            publishedArtwork = image.map { image in
+                MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            }
         }
+        let artwork = publishedArtwork
         nowPlaying.update(
             track: currentTrack,
             isPlaying: isPlaying,

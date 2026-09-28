@@ -68,7 +68,7 @@ final class LibraryModel {
     ///
     /// Appelée au lancement et à chaque retour au premier plan : l'utilisateur
     /// peut avoir déposé des fichiers via l'app Fichiers pendant ce temps.
-    func refresh(pruning store: PreferencesStore? = nil) async {
+    func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
@@ -78,7 +78,6 @@ final class LibraryModel {
             let loaded = try await source.loadTracks()
             tracks = loaded
             state = .loaded
-            store?.prune(keeping: Set(loaded.map(\.id)))
         } catch {
             state = .failed(error.localizedDescription)
             lastMessage = error.localizedDescription
@@ -111,7 +110,7 @@ final class LibraryModel {
         do {
             try await importing.deleteTrack(track)
             tracks.removeAll { $0.id == track.id }
-            store.prune(keeping: Set(tracks.map(\.id)))
+            store.forget(track.id)
         } catch {
             lastMessage = "Suppression impossible : \(error.localizedDescription)"
         }

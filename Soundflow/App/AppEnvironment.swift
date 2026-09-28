@@ -11,14 +11,24 @@ final class AppEnvironment {
     let preferences: PreferencesStore
     let library: LibraryModel
     let player: PlayerController
+    let backgrounds: BackgroundStore
 
     init() {
         let preferences = PreferencesStore()
         let library = LibraryModel(source: LocalAudioSource())
         let player = PlayerController(library: library, store: preferences)
+        let backgrounds = BackgroundStore()
+
+        // Le fond choisi remplace la pochette partout, écran verrouillé
+        // compris. Le magasin des fonds prévient le lecteur ; ni l'un ni
+        // l'autre n'a besoin de connaître le fonctionnement de l'autre.
+        backgrounds.onSelectedStillChanged = { [weak player] image in
+            player?.setArtworkOverride(image)
+        }
 
         self.preferences = preferences
         self.library = library
         self.player = player
+        self.backgrounds = backgrounds
     }
 }

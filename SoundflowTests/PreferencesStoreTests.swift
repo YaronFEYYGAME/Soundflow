@@ -133,20 +133,89 @@ final class PreferencesStoreTests: XCTestCase {
         XCTAssertEqual(store.history.first, id("track-\(PreferencesStore.historyLimit + 49).mp3"))
     }
 
-    // MARK: - Nettoyage
+    // MARK: - Oubli explicite
 
-    func testPruneRemovesVanishedTracks() {
+    func testForgetRemovesOnlyThatTrack() {
         let store = PreferencesStore(fileURL: fileURL)
         store.setScore(2, for: id("reste.mp3"))
         store.setScore(1, for: id("supprimé.mp3"))
         store.recordPlay(of: id("supprimé.mp3"))
         store.recordPlay(of: id("reste.mp3"))
 
-        store.prune(keeping: [id("reste.mp3")])
+        store.forget(id("supprimé.mp3"))
 
         XCTAssertEqual(store.score(for: id("reste.mp3")), 2)
         XCTAssertEqual(store.score(for: id("supprimé.mp3")), 0)
         XCTAssertEqual(store.history, [id("reste.mp3")])
+    }
+
+    // MARK: - Migration depuis l'ancien emplacement
+
+    func testMigratesLegacyFileOnFirstLaunch() async throws {
+        let legacyURL = temporaryDirectory.appending(path: "ancien/library-state.json")
+        let old = PreferencesStore(fileURL: legacyURL)
+        old.setScore(2, for: id("aimé.mp3"))
+        old.setMuted(true, for: id("silence.mp3"))
+        await old.flush()
+
+        let store = PreferencesStore(fileURL: fileURL, legacyFileURL: legacyURL)
+
+        XCTAssertEqual(store.score(for: id("aimé.mp3")), 2)
+        XCTAssertTrue(store.isMuted(id("silence.mp3")))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: legacyURL.path(percentEncoded: false)),
+            "L'ancien fichier doit disparaître une fois repris"
+        )
+    }
+
+    func testMigrationNeverOverwritesExistingNewFile() async throws {
+        let current = PreferencesStore(fileURL: fileURL)
+        current.setScore(1, for: id("a.mp3"))
+        await current.flush()
+
+        let legacyURL = temporaryDirectory.appending(path: "ancien/library-state.json")
+        let old = PreferencesStore(fileURL: legacyURL)
+        old.setScore(-2, for: id("a.mp3"))
+        await old.flush()
+
+        let store = PreferencesStore(fileURL: fileURL, legacyFileURL: legacyURL)
+        XCTAssertEqual(store.score(for: id("a.mp3")), 1, "Le nouveau fichier fait foi")
+    }
+
+    // MARK: - Rechargement après remplacement externe
+
+    func testReloadsWhenFileIsReplacedFromOutside() async throws {
+        let store = PreferencesStore(fileURL: fileURL)
+        store.setScore(1, for: id("a.mp3"))
+        await store.flush()
+
+        // Réglages d'une autre installation, copiés via l'app Fichiers.
+        let otherURL = temporaryDirectory.appending(path: "autre/Soundflow-reglages.json")
+        let other = PreferencesStore(fileURL: otherURL)
+        other.setScore(-2, for: id("a.mp3"))
+        other.setMuted(true, for: id("b.mp3"))
+        await other.flush()
+
+        try FileManager.default.removeItem(at: fileURL)
+        try FileManager.default.copyItem(at: otherURL, to: fileURL)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(120)],
+            ofItemAtPath: fileURL.path(percentEncoded: false)
+        )
+
+        XCTAssertTrue(store.reloadIfChangedOnDisk())
+        XCTAssertEqual(store.score(for: id("a.mp3")), -2)
+        XCTAssertTrue(store.isMuted(id("b.mp3")))
+        XCTAssertFalse(store.reloadIfChangedOnDisk(), "Rien n'a changé depuis : pas de rechargement")
+    }
+
+    func testDoesNotReloadAfterItsOwnWrites() async {
+        let store = PreferencesStore(fileURL: fileURL)
+        store.setScore(2, for: id("a.mp3"))
+        await store.flush()
+        XCTAssertFalse(store.reloadIfChangedOnDisk())
+        XCTAssertEqual(store.score(for: id("a.mp3")), 2)
     }
 }
 
