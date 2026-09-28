@@ -89,6 +89,15 @@ jobs:
           done
           echo "✓ Dossier Soundflow visible depuis l'app Fichiers."
 
+          # L'icône est injectée dans Info.plist par le compilateur du
+          # catalogue d'images. Si elle manquait, l'app s'installerait avec
+          # une icône blanche — autre panne invisible à la compilation.
+          if ! plutil -extract CFBundleIcons xml1 -o - "$PLIST" >/dev/null 2>&1; then
+            echo "::error::Aucune icône déclarée dans l'app construite."
+            exit 1
+          fi
+          echo "✓ Icône de l'application présente."
+
       # --- Empaquetage -----------------------------------------------------
       # Un .ipa n'est rien d'autre qu'une archive ZIP contenant un dossier
       # « Payload » avec l'app dedans. On le fabrique à la main, parce que
