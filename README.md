@@ -9,10 +9,18 @@ casque, sans y penser.
   pilotée par un score favori.
 - **Score favori de −2 à +2** et **mise en sourdine** par morceau, tous deux
   accessibles en un ou deux taps, jamais cachés dans un menu.
+- **File d'attente** : un balayage vers la droite sur un morceau l'ajoute à
+  la suite ; la file se consulte et se réordonne depuis l'écran de lecture.
+- **Fonds personnalisés** (images ou GIF) qui remplacent les pochettes,
+  écran verrouillé compris.
 - **Lecture en arrière-plan** stable : écran verrouillé, centre de contrôle,
   boutons du casque, reprise après un appel téléphonique.
 
 Pas de playlists, pas d'égaliseur, pas de statistiques. C'est volontaire.
+
+Toute la bibliothèque — musique, réglages (`Soundflow-reglages.json`) et
+fonds (dossier `Fonds`) — tient dans un seul dossier, visible dans l'app
+Fichiers. La sauvegarder ou la transférer, c'est déplacer ce dossier.
 
 ---
 
@@ -68,6 +76,8 @@ docs/             Explications détaillées
 
 - [`docs/INSTALLER-SANS-MAC.md`](docs/INSTALLER-SANS-MAC.md) — installer
   l'app depuis un PC Windows, pas à pas.
+- [`docs/PASSER-A-ALTSTORE.md`](docs/PASSER-A-ALTSTORE.md) — passer de
+  Sideloadly à AltStore sans rien perdre.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — comment les couches sont
   séparées, et **comment ajouter une source iCloud ou Dropbox** plus tard.
 - [`docs/ALGORITHME-ALEATOIRE.md`](docs/ALGORITHME-ALEATOIRE.md) — le

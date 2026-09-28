@@ -1,5 +1,12 @@
 # Installer Soundflow sur votre iPhone, sans Mac
 
+> **Déjà installé avec Sideloadly ?** Passez à AltStore : plus de câble chaque
+> semaine, et les mises à jour s'installent depuis l'iPhone. Le guide est
+> ici : **[PASSER-A-ALTSTORE.md](PASSER-A-ALTSTORE.md)**.
+>
+> **Dernière version, lien direct** (téléchargeable depuis l'iPhone) :
+> https://github.com/YaronFEYYGAME/Soundflow/releases/download/derniere-version/Soundflow.ipa
+
 Vous avez un PC Windows et un iPhone. Pas de Mac. C'est jouable, et c'est
 gratuit — il faut juste comprendre le problème avant de le contourner.
 

@@ -167,3 +167,52 @@ jobs:
             -scheme Soundflow \
             -destination "id=${{ steps.simulator.outputs.udid }}" \
             test
+
+  # Publie la version compilée à une adresse fixe, téléchargeable directement
+  # depuis l'iPhone (Safari), sans compte GitHub ni fichier ZIP :
+  #   https://github.com/<dépôt>/releases/download/derniere-version/Soundflow.ipa
+  #
+  # Ne s'exécute que si la compilation ET les tests ont réussi : on ne publie
+  # jamais une version qui n'a pas passé les tests.
+  publish:
+    name: Publier la dernière version
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupérer le .ipa compilé
+        uses: actions/download-artifact@v4
+        with:
+          name: Soundflow-ipa
+          path: dist
+
+      - name: Mettre à jour la version publiée
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mv dist/Soundflow-unsigned.ipa dist/Soundflow.ipa
+          TAG="derniere-version"
+          NOTES="Compilée depuis ${SHA::7} le $(date -u '+%d/%m/%Y à %H:%M') UTC. Compilation et tests réussis.
+
+          Lien direct, à ouvrir depuis l'iPhone : https://github.com/${REPO}/releases/download/${TAG}/Soundflow.ipa"
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$REPO" --notes "$NOTES"
+          else
+            gh release create "$TAG" --repo "$REPO" --target "$SHA" \
+              --title "Dernière version" --notes "$NOTES"
+          fi
+          gh release upload "$TAG" dist/Soundflow.ipa --repo "$REPO" --clobber
+
+          {
+            echo "## Version publiée"
+            echo ""
+            echo "Téléchargement direct depuis l'iPhone :"
+            echo "https://github.com/${REPO}/releases/download/${TAG}/Soundflow.ipa"
+          } >> "$GITHUB_STEP_SUMMARY"
