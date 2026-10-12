@@ -224,6 +224,11 @@ morceaux, scores et sourdines restent intacts**).
 Pour la réactiver : rebranchez l'iPhone et relancez Sideloadly sur le même
 fichier. Deux minutes.
 
+Il arrive qu'iOS affiche ensuite **« Développeur non approuvé »** à
+l'ouverture : Sideloadly a créé un nouveau certificat en ré-signant, et
+l'approbation donnée à l'ancien ne vaut pas pour lui. Refaites simplement
+l'étape 6 (voir le dépannage ci-dessous).
+
 **Pour ne plus y penser**, deux options :
 
 - **AltStore** renouvelle automatiquement dès que l'iPhone et le PC sont sur le
@@ -249,6 +254,21 @@ sans hub.
 
 **L'iPhone réclame le « mode développeur »**
 C'est l'étape 5, obligatoire depuis iOS 16. Elle ne se fait qu'une fois.
+
+**« Développeur non approuvé » après une réinstallation**
+Message complet : *« Vos réglages de gestion de l'appareil n'autorisent pas
+l'exécution d'apps du développeur « iPhone Developer: … » sur cet iPhone.
+Autorisez ces apps dans Réglages. »*
+
+L'installation a bien fonctionné ; seule l'approbation manque. En
+ré-signant l'app, Sideloadly crée parfois un nouveau certificat, et iOS
+redemande votre accord pour celui-ci. Refaites l'étape 6 : **Réglages →
+Général → VPN et gestion de l'appareil** → la ligne « iPhone Developer… » →
+**Se fier**. Soyez connecté à Internet à ce moment-là : iOS vérifie le
+certificat auprès d'Apple. Vos morceaux et réglages ne sont pas affectés.
+
+Si aucune ligne « iPhone Developer… » n'apparaît dans ce menu,
+l'installation par Sideloadly ne s'est pas terminée : relancez-la.
 
 **« Unable to verify app » / l'app ne s'ouvre pas**
 L'étape 6 n'a pas été faite, ou les 7 jours sont écoulés.
