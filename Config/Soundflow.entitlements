@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Droits (entitlements) intégrés à la signature provisoire du .ipa.
+
+  Le .ipa est compilé sans signature (aucun compte Apple dans la compilation
+  automatique), puis reçoit une signature « ad hoc » portant ces droits.
+  Raison : AltStore lit les droits de l'app dans sa signature avant de la
+  re-signer avec le compte de l'utilisateur. Sans signature, il n'a rien à
+  lire et échoue avec « The data couldn't be read because it isn't in the
+  correct format ». Sideloadly, lui, s'en passait.
+
+  Soundflow ne demande aucune capacité particulière : seule la clé standard
+  des versions de développement figure ici. AltStore et Sideloadly
+  remplacent de toute façon cette signature par celle du compte utilisé.
+-->
+<dict>
+	<key>get-task-allow</key>
+	<true/>
+</dict>
+</plist>

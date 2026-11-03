@@ -112,6 +112,26 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/package/Payload"
           cp -R "$APP" "$RUNNER_TEMP/package/Payload/"
+          PACKAGED_APP="$RUNNER_TEMP/package/Payload/Soundflow.app"
+
+          # Signature provisoire (« ad hoc », sans compte Apple) portant une
+          # liste de droits valide. AltStore lit ces droits avant de
+          # re-signer l'app avec le compte de l'utilisateur ; sur un binaire
+          # sans signature, il échoue (« The data couldn't be read because
+          # it isn't in the correct format »). Sideloadly et AltStore
+          # remplacent ensuite cette signature par la leur.
+          codesign --force --sign - --timestamp=none --generate-entitlement-der \
+            --entitlements Config/Soundflow.entitlements "$PACKAGED_APP"
+
+          # Vérification : signature valide, et droits bien lisibles.
+          codesign --verify --verbose=2 "$PACKAGED_APP"
+          if ! codesign -d --entitlements - "$PACKAGED_APP" 2>&1 | grep -q "get-task-allow"; then
+            echo "::error::Les droits (entitlements) ne sont pas lisibles dans la signature : AltStore refuserait l'app."
+            codesign -d --entitlements - "$PACKAGED_APP" || true
+            exit 1
+          fi
+          echo "✓ Signature provisoire et droits lisibles (compatibles AltStore)."
+
           cd "$RUNNER_TEMP/package"
           zip -qry "$RUNNER_TEMP/Soundflow-unsigned.ipa" Payload
           ls -lh "$RUNNER_TEMP/Soundflow-unsigned.ipa"
